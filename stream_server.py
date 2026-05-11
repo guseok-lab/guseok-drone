@@ -3,9 +3,6 @@ load_dotenv()  # .env 파일 자동 로드
 
 import cv2
 import requests
-
-import cv2
-import requests
 import threading
 import time
 import os
