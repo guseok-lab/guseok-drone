@@ -1,3 +1,4 @@
+from pyngrok import ngrok
 from dotenv import load_dotenv
 load_dotenv()  # .env 파일 자동 로드
 
@@ -6,6 +7,7 @@ import requests
 import threading
 import time
 import os
+import socket
 from flask import Flask, Response, jsonify
 
 app = Flask(__name__)
@@ -195,6 +197,44 @@ def health():
         "frame_ready": has_frame
     })
 
+@app.route('/gps')
+def gps_page():
+    """휴대폰 브라우저에서 열면 GPS 자동 전송"""
+    return '''
+    <html>
+    <body>
+    <h2>GPS 전송 중...</h2>
+    <p id="status">위치 확인 중...</p>
+    <script>
+    const SPRING_URL = "http://AWS서버주소/api/v1/drone-callback/location";
+    
+    navigator.geolocation.watchPosition(
+        (pos) => {
+            const data = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy
+            };
+            
+            fetch(SPRING_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            
+            document.getElementById('status').innerText = 
+                `위도: ${data.lat}, 경도: ${data.lng}`;
+        },
+        (err) => {
+            document.getElementById('status').innerText = 'GPS 오류: ' + err.message;
+        },
+        { enableHighAccuracy: true, maximumAge: 0 }
+    );
+    </script>
+    </body>
+    </html>
+    ''';
+
 # ──────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -211,5 +251,23 @@ if __name__ == '__main__':
 
     # Spring에 스트림 URL 등록 (Spring 준비되면 주석 해제)
     # threading.Thread(target=register_stream_url, daemon=True).start()
+
+    # ngrok 터널 생성
+    if os.getenv("USE_NGROK", "true") == "true":
+        public_url = ngrok.connect(PORT)
+        stream_url = f"{public_url}/video"
+        print(f"[ngrok] 공인 URL: {stream_url}")
+
+        # Spring에 자동 등록
+        if SPRING_URL:
+            try:
+                requests.post(
+                    f"{SPRING_URL}/api/v1/drone-callback/stream",
+                    json={"streamUrl": stream_url},
+                    timeout=3
+                )
+                print(f"[Spring] 스트림 URL 등록 완료")
+            except Exception as e:
+                print(f"[Spring] 등록 실패: {e}")
 
     app.run(host='0.0.0.0', port=PORT, threaded=True)
