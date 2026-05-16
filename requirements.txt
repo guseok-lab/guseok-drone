@@ -1,6 +1,5 @@
 flask
-opencv-python
-djitellopy
+flask-cors
 requests
 python-dotenv
 pyngrok
