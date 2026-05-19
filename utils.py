@@ -1,0 +1,79 @@
+import socket
+import subprocess
+import time
+import atexit
+import re
+import qrcode
+import requests
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SPRING_URL = os.getenv("SPRING_URL", "")
+STREAM_FPS = int(os.getenv("STREAM_FPS", "15"))
+
+
+def get_local_ip() -> str:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+        except Exception:
+            return "127.0.0.1"
+
+
+def get_base_url(request) -> str:
+    proto = request.headers.get("X-Forwarded-Proto", "http")
+    host  = request.headers.get("X-Forwarded-Host", request.host)
+    return f"{proto}://{host}"
+
+
+def open_qr(url: str) -> None:
+    try:
+        img  = qrcode.make(url)
+        path = "/tmp/stream_qr.png"
+        img.save(path)
+        subprocess.Popen(["open", path])
+        print("  QR이 Preview에서 열렸습니다 → 폰 카메라로 스캔하세요")
+    except Exception as e:
+        print(f"  QR 생성 실패: {e}")
+
+
+def start_cloudflare(port: int) -> str | None:
+    try:
+        proc = subprocess.Popen(
+            ["cloudflared", "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        atexit.register(proc.terminate)
+
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            line  = proc.stdout.readline().decode("utf-8", errors="ignore")
+            match = re.search(r"https://[\w\-]+\.trycloudflare\.com", line)
+            if match:
+                return match.group(0)
+        print("[cloudflare] URL 파싱 실패")
+        return None
+    except FileNotFoundError:
+        print("[cloudflare] 설치 필요: brew install cloudflared")
+        return None
+    except Exception as e:
+        print(f"[cloudflare] 실패: {e}")
+        return None
+
+
+def notify_spring(drone_id: str, stream_url: str, connected: bool) -> None:
+    if not SPRING_URL:
+        return
+    try:
+        requests.post(
+            f"{SPRING_URL}/api/v1/drone-callback/stream",
+            json={"droneId": drone_id, "streamUrl": stream_url, "connected": connected},
+            timeout=3,
+        )
+    except Exception as e:
+        print(f"[Spring] 알림 실패: {e}")
