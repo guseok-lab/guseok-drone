@@ -69,14 +69,38 @@ def start_cloudflare(port: int) -> str | None:
         return None
 
 
-def notify_spring(drone_id: str, stream_url: str, connected: bool) -> None:
+def notify_spring_stream(drone_id: str, search_id: int | None, stream_url: str, connected: bool) -> None:
+    """POST /api/v1/drone-callback/stream — 스트림 URL 등록/해제"""
     if not SPRING_URL:
         return
     try:
         requests.post(
             f"{SPRING_URL}/api/v1/drone-callback/stream",
-            json={"droneId": drone_id, "streamUrl": stream_url, "connected": connected},
+            json={
+                "droneId":   drone_id,
+                "searchId":  search_id,
+                "streamUrl": stream_url,
+                "connected": connected,
+            },
             timeout=3,
         )
     except Exception as e:
-        print(f"[Spring] 알림 실패: {e}")
+        print(f"[Spring] 스트림 알림 실패: {e}")
+
+
+def notify_spring_status(drone_id: str, search_id: int | None, status: str) -> None:
+    """POST /api/v1/drone-callback/status — 드론 상태 전달 (STREAMING | DISCONNECTED)"""
+    if not SPRING_URL:
+        return
+    try:
+        requests.post(
+            f"{SPRING_URL}/api/v1/drone-callback/status",
+            json={
+                "droneId":  drone_id,
+                "searchId": search_id,
+                "status":   status,
+            },
+            timeout=3,
+        )
+    except Exception as e:
+        print(f"[Spring] 상태 알림 실패: {e}")

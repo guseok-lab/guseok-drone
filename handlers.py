@@ -4,23 +4,40 @@ import uuid
 from aiohttp import web, WSMsgType
 
 from frame_broadcaster import FrameBroadcaster
-from utils import get_base_url, notify_spring, STREAM_FPS
+from utils import get_base_url, notify_spring_stream, notify_spring_status, STREAM_FPS
 
 broadcasters: dict[str, FrameBroadcaster] = {}
 
 
 async def handle_ws(request: web.Request) -> web.WebSocketResponse:
+    """
+    GET /ws?searchId={searchId}
+    폰이 WebSocket으로 연결 → JPEG 프레임 수신.
+    searchId는 Spring의 탐색 요청 ID (프론트에서 QR URL에 포함해서 전달).
+    """
     ws = web.WebSocketResponse(max_msg_size=5 * 1024 * 1024)
     await ws.prepare(request)
 
-    drone_id    = "drone-" + uuid.uuid4().hex[:8]
+    # searchId: QR URL 쿼리파라미터로 전달받음 (?searchId=5)
+    raw = request.rel_url.query.get("searchId", "")
+    search_id: int | None = int(raw) if raw.isdigit() else None
+    drone_id  = "drone-" + uuid.uuid4().hex[:8]
+
     broadcaster = FrameBroadcaster(drone_id)
     broadcasters[drone_id] = broadcaster
 
     stream_url = f"{get_base_url(request)}/video/{drone_id}"
-    print(f"[{drone_id}] 연결 → {stream_url}")
+    print(f"[{drone_id}] 연결 (searchId={search_id or 'none'}) → {stream_url}")
 
-    asyncio.create_task(asyncio.to_thread(notify_spring, drone_id, stream_url, True))
+    # Spring에 스트림 URL 등록 + 상태 STREAMING 전달
+    asyncio.create_task(asyncio.to_thread(
+        notify_spring_stream, drone_id, search_id, stream_url, True
+    ))
+    asyncio.create_task(asyncio.to_thread(
+        notify_spring_status, drone_id, search_id, "STREAMING"
+    ))
+
+    # 폰에게 droneId 전달 (폰 화면에 표시용)
     await ws.send_json({"droneId": drone_id, "streamUrl": stream_url})
 
     try:
@@ -32,12 +49,23 @@ async def handle_ws(request: web.Request) -> web.WebSocketResponse:
     finally:
         broadcasters.pop(drone_id, None)
         print(f"[{drone_id}] 종료")
-        asyncio.create_task(asyncio.to_thread(notify_spring, drone_id, stream_url, False))
+        # Spring에 스트림 해제 + 상태 DISCONNECTED 전달
+        asyncio.create_task(asyncio.to_thread(
+            notify_spring_stream, drone_id, search_id, stream_url, False
+        ))
+        asyncio.create_task(asyncio.to_thread(
+            notify_spring_status, drone_id, search_id, "DISCONNECTED"
+        ))
 
     return ws
 
 
 async def handle_video(request: web.Request) -> web.StreamResponse:
+    """
+    GET /video/{drone_id}?fps=N
+    프론트:  <img src="http://서버/video/drone-a1b2c3d4">
+    AI:      cv2.VideoCapture("http://서버/video/drone-a1b2c3d4")
+    """
     drone_id    = request.match_info["drone_id"]
     broadcaster = broadcasters.get(drone_id)
     if broadcaster is None:
@@ -66,6 +94,7 @@ async def handle_video(request: web.Request) -> web.StreamResponse:
 
 
 async def handle_drones(request: web.Request) -> web.Response:
+    """GET /drones — 연결된 드론 목록 + 스트림 URL"""
     base = get_base_url(request)
     return web.json_response([
         {**b.stats(), "stream_url": f"{base}/video/{did}"}
@@ -82,6 +111,11 @@ async def handle_health(request: web.Request) -> web.Response:
 
 
 async def handle_sender(request: web.Request) -> web.Response:
+    """
+    GET /?searchId={searchId}
+    QR코드 스캔 후 폰 브라우저에서 열리는 페이지.
+    URL의 searchId를 읽어 WebSocket 연결 시 함께 전달.
+    """
     html = """<!DOCTYPE html>
 <html>
 <head>
@@ -114,7 +148,12 @@ async def handle_sender(request: web.Request) -> web.Response:
   <script>
     const TARGET_FPS   = 15;
     const JPEG_QUALITY = 0.8;
-    const WS_URL = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws';
+
+    // URL에서 searchId 읽기 (?searchId=5)
+    const searchId = new URLSearchParams(location.search).get('searchId') || '';
+    const WS_URL   = (location.protocol === 'https:' ? 'wss' : 'ws')
+                     + '://' + location.host + '/ws'
+                     + (searchId ? '?searchId=' + searchId : '');
 
     let ws = null, streaming = false, sending = false;
     let lastSent = 0, fpsCount = 0, fpsTimer = Date.now();
@@ -130,7 +169,8 @@ async def handle_sender(request: web.Request) -> web.Response:
         try {
           const d = JSON.parse(e.data);
           $('info').style.display = 'block';
-          $('info').innerText = '드론 ID: ' + d.droneId;
+          $('info').innerText = '드론 ID: ' + d.droneId
+                              + (searchId ? ' | 탐색: ' + searchId : '');
           setStatus('✅ 스트리밍 중', 'ok');
         } catch {}
       };
@@ -198,8 +238,9 @@ async def handle_test(request: web.Request) -> web.Response:
   <style>
     body { background:#111; color:#fff; font-family:sans-serif; padding:20px; }
     .grid { display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
-    .card { background:#1a1a1a; border-radius:10px; padding:10px; }
-    .card img { width:320px; border-radius:6px; display:block; }
+    .card { background:#1a1a1a; border-radius:10px; padding:10px; width:480px; }
+    .card img { width:100%; aspect-ratio:16/9; border-radius:6px;
+                display:block; object-fit:contain; }
     .card p { font-size:12px; color:#aaa; margin-top:6px; }
     #empty { color:#666; }
   </style>
