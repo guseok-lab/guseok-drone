@@ -11,8 +11,9 @@ from utils import get_local_ip, open_qr, start_cloudflare
 
 load_dotenv()
 
-PORT           = int(os.getenv("PORT", "5001"))
-USE_CLOUDFLARE = os.getenv("USE_CLOUDFLARE", "false") == "true"
+PORT             = int(os.getenv("PORT", "5001"))
+USE_CLOUDFLARE   = os.getenv("USE_CLOUDFLARE", "false") == "true"
+DRONE_SERVER_URL = os.getenv("DRONE_SERVER_URL", "")  # 배포 시 고정 URL
 
 
 @web.middleware
@@ -36,25 +37,35 @@ def build_app() -> web.Application:
 if __name__ == "__main__":
     local_url = f"http://{get_local_ip()}:{PORT}"
 
-    public_url = None
-    if USE_CLOUDFLARE:
+    if DRONE_SERVER_URL:
+        # 배포: 환경변수에 고정 URL 설정된 경우
+        best_url = DRONE_SERVER_URL
+        print(f"[배포] 고정 URL 사용: {best_url}")
+
+    elif USE_CLOUDFLARE:
+        # 개발: cloudflare tunnel 자동 실행
         print("[cloudflare] 터널 시작 중 (최대 30초)...")
         public_url = start_cloudflare(PORT)
         if public_url:
             print(f"[cloudflare] {public_url}")
+            best_url = public_url
         else:
             print("[cloudflare] 실패 — 로컬 IP로 진행")
+            best_url = local_url
 
-    best_url = public_url or local_url
-    ws_url   = best_url.replace("https://", "wss://").replace("http://", "ws://")
+    else:
+        # 로컬: 로컬 IP 사용
+        best_url = local_url
+
+    ws_url = best_url.replace("https://", "wss://").replace("http://", "ws://")
 
     print()
     print("=" * 54)
     print("  스트림 서버 시작")
     print("=" * 54)
     print(f"  로컬 : {local_url}/")
-    if public_url:
-        print(f"  공인 : {public_url}/")
+    if best_url != local_url:
+        print(f"  공인 : {best_url}/")
     print()
     open_qr(best_url)
     print(f"  URL  : {best_url}")
