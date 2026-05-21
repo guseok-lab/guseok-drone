@@ -1,12 +1,12 @@
+import atexit
+import os
+import re
 import socket
 import subprocess
 import time
-import atexit
-import re
+
 import qrcode
 import requests
-
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,12 +25,14 @@ def get_local_ip() -> str:
 
 
 def get_base_url(request) -> str:
+    """터널 경유 시 public URL, 아닐 시 로컬 URL 반환"""
     proto = request.headers.get("X-Forwarded-Proto", "http")
     host  = request.headers.get("X-Forwarded-Host", request.host)
     return f"{proto}://{host}"
 
 
 def open_qr(url: str) -> None:
+    """QR 이미지를 /tmp에 저장 후 macOS Preview로 자동 오픈"""
     try:
         img  = qrcode.make(url)
         path = "/tmp/stream_qr.png"
@@ -42,6 +44,7 @@ def open_qr(url: str) -> None:
 
 
 def start_cloudflare(port: int) -> str | None:
+    """cloudflared quick tunnel — 계정 불필요, brew install cloudflared"""
     try:
         proc = subprocess.Popen(
             ["cloudflared", "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"],

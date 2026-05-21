@@ -1,12 +1,14 @@
+import asyncio
 import time
+
 
 class FrameBroadcaster:
     def __init__(self, drone_id: str):
-        self.drone_id      = drone_id
+        self.drone_id       = drone_id
         self._frame: bytes | None = None
-        self._client_count = 0
-        self._recv_fps     = 0.0
-        self._frame_count  = 0
+        self._client_count  = 0
+        self._recv_fps      = 0.0
+        self._frame_count   = 0
         self._last_fps_time = time.monotonic()
 
     async def push(self, frame: bytes) -> None:
@@ -20,7 +22,6 @@ class FrameBroadcaster:
             self._last_fps_time = now
 
     async def stream(self, fps: int):
-        import asyncio
         interval   = 1.0 / fps
         last_frame = None
         self._client_count += 1

@@ -1,10 +1,19 @@
-from aiohttp import web
-from handlers import handle_ws, handle_video, handle_drones, handle_health, handle_sender, handle_test
-from utils import get_local_ip, open_qr, start_cloudflare
 import os
+
+from aiohttp import web
+from dotenv import load_dotenv
+
+from handlers import (
+    handle_ws, handle_video, handle_drones,
+    handle_health, handle_sender, handle_test,
+)
+from utils import get_local_ip, open_qr, start_cloudflare
+
+load_dotenv()
 
 PORT           = int(os.getenv("PORT", "5001"))
 USE_CLOUDFLARE = os.getenv("USE_CLOUDFLARE", "false") == "true"
+
 
 @web.middleware
 async def common_headers(request: web.Request, handler):
@@ -12,15 +21,17 @@ async def common_headers(request: web.Request, handler):
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
+
 def build_app() -> web.Application:
     app = web.Application(middlewares=[common_headers])
-    app.router.add_get("/",               handle_sender)
-    app.router.add_get("/ws",             handle_ws)
-    app.router.add_get("/video/{drone_id}", handle_video)
-    app.router.add_get("/drones",         handle_drones)
-    app.router.add_get("/health",         handle_health)
-    app.router.add_get("/test",           handle_test)
+    app.router.add_get("/",                  handle_sender)
+    app.router.add_get("/ws",                handle_ws)
+    app.router.add_get("/video/{drone_id}",  handle_video)
+    app.router.add_get("/drones",            handle_drones)
+    app.router.add_get("/health",            handle_health)
+    app.router.add_get("/test",              handle_test)
     return app
+
 
 if __name__ == "__main__":
     local_url = f"http://{get_local_ip()}:{PORT}"
