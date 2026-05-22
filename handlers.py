@@ -8,7 +8,6 @@ from utils import get_base_url, notify_spring_stream, notify_spring_status, STRE
 
 broadcasters: dict[str, FrameBroadcaster] = {}
 
-
 async def handle_ws(request: web.Request) -> web.WebSocketResponse:
     """
     GET /ws?searchId={searchId}
@@ -59,7 +58,7 @@ async def handle_ws(request: web.Request) -> web.WebSocketResponse:
 
     return ws
 
-
+'''MJPEG 스트림 송출'''
 async def handle_video(request: web.Request) -> web.StreamResponse:
     """
     GET /video/{drone_id}?fps=N
@@ -101,7 +100,7 @@ async def handle_drones(request: web.Request) -> web.Response:
         for did, b in broadcasters.items()
     ])
 
-
+'''서버 상태'''
 async def handle_health(request: web.Request) -> web.Response:
     return web.json_response({
         "status": "ok",
@@ -109,7 +108,7 @@ async def handle_health(request: web.Request) -> web.Response:
         "stream_fps_max": STREAM_FPS,
     })
 
-
+'''폰 카메라 송신 페이지 - GET /'''
 async def handle_sender(request: web.Request) -> web.Response:
     """
     GET /?searchId={searchId}
@@ -171,7 +170,7 @@ async def handle_sender(request: web.Request) -> web.Response:
           $('info').style.display = 'block';
           $('info').innerText = '드론 ID: ' + d.droneId
                               + (searchId ? ' | 탐색: ' + searchId : '');
-          setStatus('✅ 스트리밍 중', 'ok');
+          setStatus('스트리밍 중', 'ok');
         } catch {}
       };
       ws.onclose = () => {
@@ -228,7 +227,7 @@ async def handle_sender(request: web.Request) -> web.Response:
 </html>"""
     return web.Response(text=html, content_type="text/html")
 
-
+'''브라우저 모니터링 페이지 - GET /test'''
 async def handle_test(request: web.Request) -> web.Response:
     html = b"""<!DOCTYPE html>
 <html>

@@ -14,7 +14,7 @@ load_dotenv()
 SPRING_URL = os.getenv("SPRING_URL", "")
 STREAM_FPS = int(os.getenv("STREAM_FPS", "15"))
 
-
+'''로컬 IP 조회'''
 def get_local_ip() -> str:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         try:
@@ -23,16 +23,15 @@ def get_local_ip() -> str:
         except Exception:
             return "127.0.0.1"
 
-
 def get_base_url(request) -> str:
-    """터널 경유 시 public URL, 아닐 시 로컬 URL 반환"""
+    """터널 경유 시 public URL, 아니면 로컬 URL 반환"""
     proto = request.headers.get("X-Forwarded-Proto", "http")
     host  = request.headers.get("X-Forwarded-Host", request.host)
     return f"{proto}://{host}"
 
 
 def open_qr(url: str) -> None:
-    """QR 이미지를 /tmp에 저장 후 macOS Preview로 자동 오픈"""
+    """QR 이미지를 /tmp에 저장 후 Preview로 자동 오픈"""
     try:
         img  = qrcode.make(url)
         path = "/tmp/stream_qr.png"
@@ -44,7 +43,7 @@ def open_qr(url: str) -> None:
 
 
 def start_cloudflare(port: int) -> str | None:
-    """cloudflared quick tunnel — 계정 불필요, brew install cloudflared"""
+    """cloudflared 프로세스 실행 -> URL 파싱 반환"""
     try:
         proc = subprocess.Popen(
             ["cloudflared", "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"],

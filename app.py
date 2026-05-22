@@ -16,13 +16,14 @@ USE_CLOUDFLARE   = os.getenv("USE_CLOUDFLARE", "false") == "true"
 DRONE_SERVER_URL = os.getenv("DRONE_SERVER_URL", "")  # 배포 시 고정 URL
 
 
+'''모든 응답에 CORS 헤더 자동 추가'''
 @web.middleware
 async def common_headers(request: web.Request, handler):
     response = await handler(request)
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
-
+'''라우터 등록'''
 def build_app() -> web.Application:
     app = web.Application(middlewares=[common_headers])
     app.router.add_get("/",                  handle_sender)

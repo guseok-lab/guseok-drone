@@ -11,6 +11,7 @@ class FrameBroadcaster:
         self._frame_count   = 0
         self._last_fps_time = time.monotonic()
 
+    '''폰에서 받은 JPEG 프레임 저장 + fps 계산'''
     async def push(self, frame: bytes) -> None:
         self._frame = frame
         self._frame_count += 1
@@ -21,6 +22,7 @@ class FrameBroadcaster:
             self._frame_count = 0
             self._last_fps_time = now
 
+    '''MJPEG 구독자(프론트/AI)에게 프레임 전달'''
     async def stream(self, fps: int):
         interval   = 1.0 / fps
         last_frame = None
@@ -35,6 +37,7 @@ class FrameBroadcaster:
         finally:
             self._client_count -= 1
 
+    '''드론 상태 정보 반환'''
     def stats(self) -> dict:
         return {
             "drone_id": self.drone_id,
