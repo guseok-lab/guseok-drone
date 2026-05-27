@@ -1,7 +1,6 @@
-flask
-flask-cors
-requests
-python-dotenv
-pyngrok
 aiohttp
+python-dotenv
 qrcode[pil]
+requests
+opencv-python
+websockets
